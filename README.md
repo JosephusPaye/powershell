@@ -12,7 +12,7 @@ npm install @josephuspaye/powershell --save
 
 ## Usage
 
-Suppose there's a folder called `fixtures/` in the current working directory with the following entries:
+For the following examples, let's assume there's a folder called `fixtures/` in the current working directory with the following entries:
 
 ```
 folder/
@@ -65,7 +65,7 @@ async function main() {
       'ls fixtures | Select-Object Name,DirectoryName',
       { convertTo: 'json' }
     );
-    console.log(stdout);
+    console.log(JSON.stringify(stdout, null, '  '));
   } catch (error) {
     console.error('unable to run powershell command', error);
   }
@@ -77,25 +77,28 @@ main();
 <details>
 <summary>View output</summary>
 
-```js
+```json
 [
-  { Name: 'folder', DirectoryName: null },
   {
-    Name: 'file-a.txt',
-    DirectoryName: 'C:\\code\\JosephusPaye\\powershell\\tests\\fixtures',
+    "Name": "folder",
+    "DirectoryName": null
   },
   {
-    Name: 'file-b.md',
-    DirectoryName: 'C:\\code\\JosephusPaye\\powershell\\tests\\fixtures',
+    "Name": "file-a.txt",
+    "DirectoryName": "C:\\code\\JosephusPaye\\powershell\\tests\\fixtures"
   },
-];
+  {
+    "Name": "file-b.md",
+    "DirectoryName": "C:\\code\\JosephusPaye\\powershell\\tests\\fixtures"
+  }
+]
 ```
 
 </details>
 
 ### Run a series of commands from a script file
 
-This is useful when you have a large number of commands that would exceed the maximum argument size.
+This is useful when you have a large number of commands that would exceed the maximum command argument size.
 
 ```js
 const { commandsAsScript } = require('@josephuspaye/powershell');
@@ -105,7 +108,7 @@ async function main() {
     const command = `Get-Item fixtures/file-a.txt | Select-Object Name,DirectoryName | ConvertTo-Json;`;
     const commands = [command, command, command, command].join('\r\n');
 
-    // Return is an object with stdout and stderr
+    // Return is an object with stdout (string) and stderr (string)
     const { stdout } = await commandsAsScript(commands);
 
     console.log(stdout);
