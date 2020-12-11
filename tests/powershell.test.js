@@ -1,3 +1,5 @@
+// @ts-check
+
 import path from 'path';
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
@@ -15,9 +17,30 @@ test('command() throws for PowerShell errors', async () => {
   }
 });
 
-test('command() runs a command and returns the output as text', async () => {
-  const stdout = await command('Write-Host hello');
-  assert.is(stdout, 'hello');
+test('command() runs a command and returns output as text', async () => {
+  const { result } = await command('Write-Host "hello"');
+  assert.is(result, 'hello');
+});
+
+test('command() runs a command and provides access to the underlying child process', async () => {
+  function asyncTest() {
+    return new Promise((resolve, reject) => {
+      command('Write-Host "hello"', {
+        useChildProcess(child) {
+          assert.not.type(child, undefined);
+          resolve();
+        },
+      })
+        .then(({ result }) => {
+          assert.is(result, 'hello');
+        })
+        .catch((err) => {
+          reject(err);
+        });
+    });
+  }
+
+  await asyncTest();
 });
 
 test('command() requesting JSON throws for invalid JSON', async () => {
@@ -34,12 +57,14 @@ test('command() runs a command and returns output as JSON', async () => {
 
   // Test a list of results
   {
-    const stdout = await command(
+    const { result } = await command(
       `ls ${directory} | Select-Object Name,DirectoryName`,
-      { convertTo: 'json' }
+      {
+        convertTo: 'json',
+      }
     );
 
-    assert.equal(stdout, [
+    assert.equal(result, [
       { Name: 'folder', DirectoryName: null },
       {
         Name: 'file-a.txt',
@@ -56,12 +81,14 @@ test('command() runs a command and returns output as JSON', async () => {
   {
     const fileAPath = path.join(directory, 'file-a.txt');
 
-    const stdout = await command(
+    const {
+      result,
+    } = await command(
       `Get-Item ${fileAPath} | Select-Object Name,DirectoryName`,
       { convertTo: 'json' }
     );
 
-    assert.equal(stdout, {
+    assert.equal(result, {
       Name: 'file-a.txt',
       DirectoryName: directory,
     });
@@ -71,12 +98,14 @@ test('command() runs a command and returns output as JSON', async () => {
   {
     const fileAPath = path.join(directory, 'file-a.txt');
 
-    const stdout = await command(
+    const {
+      result,
+    } = await command(
       `Get-Item ${fileAPath} | Select-Object Name,DirectoryName`,
       { convertTo: 'json', ensureJsonArray: true }
     );
 
-    assert.equal(stdout, [
+    assert.equal(result, [
       {
         Name: 'file-a.txt',
         DirectoryName: directory,
@@ -88,9 +117,11 @@ test('command() runs a command and returns output as JSON', async () => {
 test('command() runs a command and returns output as CSV', async () => {
   const directory = path.join(__dirname, 'fixtures');
 
-  const stdout = await command(
+  const { result } = await command(
     `ls ${directory} | Select-Object Name,DirectoryName`,
-    { convertTo: 'csv' }
+    {
+      convertTo: 'csv',
+    }
   );
 
   const expected = [
@@ -101,7 +132,7 @@ test('command() runs a command and returns output as CSV', async () => {
     `"file-b.md","${directory}"`,
   ].join('\r\n');
 
-  assert.equal(stdout, expected);
+  assert.equal(result, expected);
 });
 
 test('command() runs a command and returns output as HTML', async () => {
@@ -109,9 +140,11 @@ test('command() runs a command and returns output as HTML', async () => {
 
   // Test a list of results
   {
-    const stdout = await command(
+    const { result } = await command(
       `ls ${directory} | Select-Object Name,DirectoryName`,
-      { convertTo: 'html' }
+      {
+        convertTo: 'html',
+      }
     );
 
     const expected = [
@@ -130,16 +163,16 @@ test('command() runs a command and returns output as HTML', async () => {
       `</body></html>`,
     ].join('\r\n');
 
-    assert.equal(stdout, expected);
+    assert.equal(result, expected);
   }
 });
 
 test('commandsAsScript() throws for PowerShell errors', async () => {
   const { stderr } = await commandsAsScript('Unknown-Command');
-  stderr.includes(`The term 'Unknown-Command' is not recognized`);
+  assert.ok(stderr.includes(`The term 'Unknown-Command' is not recognized`));
 });
 
-test('commandsAsScript() runs one or more commands from a commandsAsScript file returns the output as text', async () => {
+test('commandsAsScript() runs one or more commands from a script file returns output as text', async () => {
   // Test simple case
   {
     const { stdout } = await commandsAsScript('Write-Host hello');
@@ -167,6 +200,25 @@ test('commandsAsScript() runs one or more commands from a commandsAsScript file 
 
     assert.equal(JSON.parse(`[${stdout}]`), expected);
   }
+});
+
+test('commandsAsScript() runs one or more commands and provides access to the underlying child process', async () => {
+  function asyncTest() {
+    return new Promise((resolve, reject) => {
+      commandsAsScript('Write-Host "hello"', (child) => {
+        assert.not.type(child, undefined);
+        resolve();
+      })
+        .then(({ stdout }) => {
+          assert.is(stdout, 'hello');
+        })
+        .catch((err) => {
+          reject(err);
+        });
+    });
+  }
+
+  await asyncTest();
 });
 
 test.run();
