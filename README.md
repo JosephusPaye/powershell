@@ -27,8 +27,8 @@ const { command } = require('@josephuspaye/powershell');
 
 async function main() {
   try {
-    const stdout = await command('ls fixtures');
-    console.log(stdout);
+    const { result } = await command('ls fixtures');
+    console.log(result);
   } catch (error) {
     console.error('unable to run powershell command', error);
   }
@@ -61,11 +61,13 @@ const { command } = require('@josephuspaye/powershell');
 
 async function main() {
   try {
-    const stdout = await command(
+    const { result } = await command(
       'ls fixtures | Select-Object Name,DirectoryName',
-      { convertTo: 'json' }
+      {
+        convertTo: 'json',
+      }
     );
-    console.log(JSON.stringify(stdout, null, '  '));
+    console.log(JSON.stringify(result, null, '  '));
   } catch (error) {
     console.error('unable to run powershell command', error);
   }
@@ -108,7 +110,6 @@ async function main() {
     const command = `Get-Item fixtures/file-a.txt | Select-Object Name,DirectoryName | ConvertTo-Json;`;
     const commands = [command, command, command, command].join('\r\n');
 
-    // Return is an object with stdout (string) and stderr (string)
     const { stdout } = await commandsAsScript(commands);
 
     console.log(stdout);
@@ -148,9 +149,47 @@ main();
 
 ```ts
 interface PowershellOptions {
+  /**
+   * The format to convert the command's output to. If this is specified, the command should
+   * not end with a semi-colon, as it is piped into another command for conversion.
+   */
   convertTo?: 'json' | 'csv' | 'html';
+
+  /**
+   * Ensure that the JSON result returned is an array. Will wrap non-arrays in an array.
+   */
   ensureJsonArray?: boolean;
+
+  /**
+   * Get access to the underlying child process. The function provided will be
+   * called with the child process as soon as it is created and launched.
+   */
+  useChildProcess?(child: ChildProcess): void;
 }
+
+interface CommandOutput {
+  /**
+   * The command's stdout, trimmed
+   */
+  stdout: string;
+
+  /**
+   * The command's stderr, trimmed
+   */
+  stderr: string;
+
+  /**
+   * The command's exit code
+   */
+  exitCode: number | null;
+}
+
+type CommandOutputWithResult<T> = CommandOutput & {
+  /**
+   * The command's result. For commands requesting JSON, this is stdout parsed as JSON.
+   */
+  result: T;
+};
 
 /**
  * Run the given PowerShell command, and optionally convert the results to JSON, CSV, or HTML.
@@ -158,14 +197,15 @@ interface PowershellOptions {
 function command<T = any>(
   command: string,
   options?: PowershellOptions
-): Promise<T>;
+): Promise<CommandOutputWithResult<T>>;
 
 /**
  * Run the given PowerShell commands from a script file and get the output as a string
  */
 function commandsAsScript(
-  commands: string
-): Promise<{ stdout: string; stderr: string }>;
+  commands: string,
+  useChildProcess?: PowershellOptions['useChildProcess']
+): Promise<CommandOutput>;
 ```
 
 ## Licence
